@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
 import { Navbar } from '@/components/layout/Navbar';
@@ -19,7 +19,8 @@ import {
   approveTokens, 
   checkAllowance,
   formatAmount,
-  shortenAddress
+  shortenAddress,
+  parseAmount
 } from '@/lib/web3';
 import { 
   DEFAULT_LISTING_DURATION_OPTIONS, 
@@ -28,7 +29,8 @@ import {
 } from '@/lib/constants';
 import { WalletState, TokenListingParams } from '@/lib/types';
 import { toast } from 'sonner';
-import { ListPlus, AlertCircle } from 'lucide-react';
+import { ListPlus, AlertCircle, Info } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function ListToken() {
   const navigate = useNavigate();
@@ -63,9 +65,29 @@ export default function ListToken() {
     symbol: string;
     decimals: number;
     balance: string;
+    balanceBN: ethers.BigNumber;
   } | null>(null);
   
   const [isLoadingToken, setIsLoadingToken] = useState(false);
+  const [amountError, setAmountError] = useState<string | null>(null);
+  
+  // Validate amount against balance whenever amount or tokenInfo changes
+  useEffect(() => {
+    if (tokenInfo && formData.amount) {
+      try {
+        const amountBN = ethers.utils.parseUnits(formData.amount, tokenInfo.decimals);
+        if (amountBN.gt(tokenInfo.balanceBN)) {
+          setAmountError('Amount exceeds your balance');
+        } else {
+          setAmountError(null);
+        }
+      } catch (error) {
+        setAmountError('Invalid amount');
+      }
+    } else {
+      setAmountError(null);
+    }
+  }, [formData.amount, tokenInfo]);
   
   // Handler for detecting wallet connection from ConnectWallet component
   const onWalletConnected = (state: WalletState) => {
@@ -117,6 +139,8 @@ export default function ListToken() {
     }
     
     setIsLoadingToken(true);
+    setTokenInfo(null);
+    setAmountError(null);
     
     try {
       const tokenContract = getERC20Contract(formData.tokenAddress, walletState.provider);
@@ -133,6 +157,7 @@ export default function ListToken() {
         symbol,
         decimals,
         balance: ethers.utils.formatUnits(balance, decimals),
+        balanceBN: balance
       });
       
       toast.success(`Token verified: ${name} (${symbol})`);
@@ -169,11 +194,24 @@ export default function ListToken() {
       return;
     }
     
-    setIsSubmitting(true);
+    // Check for amount errors
+    if (amountError) {
+      toast.error(amountError);
+      return;
+    }
     
     try {
+      // Validate amount against balance one more time
+      const amountBN = ethers.utils.parseUnits(formData.amount, tokenInfo.decimals);
+      if (amountBN.gt(tokenInfo.balanceBN)) {
+        toast.error(`Amount exceeds your balance (${parseFloat(tokenInfo.balance).toFixed(4)} ${tokenInfo.symbol})`);
+        return;
+      }
+      
+      setIsSubmitting(true);
+      
       // Format amounts with proper decimals
-      const amount = ethers.utils.parseUnits(formData.amount, tokenInfo.decimals).toString();
+      const amount = amountBN.toString();
       const pricePerShare = ethers.utils.parseUnits(
         formData.pricePerShare,
         PAYMENT_OPTIONS.find(opt => opt.address === formData.paymentToken)?.decimals || 18
@@ -214,6 +252,23 @@ export default function ListToken() {
         : ethers.BigNumber.from(0);
       
       // List the token
+      console.log('Listing token with parameters:', {
+        tokenAddress: formData.tokenAddress,
+        amount: amount,
+        pricePerShare,
+        paymentToken: formData.paymentToken,
+        referralActive: formData.referralActive,
+        referralPercent: referralPercent.toString(),
+        metadata: [
+          formData.metadata.projectWebsite,
+          formData.metadata.socialMediaLink,
+          formData.metadata.tokenImageUrl,
+          formData.metadata.telegramUrl,
+          formData.metadata.projectDescription,
+        ],
+        durationInSeconds: formData.durationInSeconds
+      });
+      
       const tx = await marketplaceContract.listToken(
         formData.tokenAddress,
         amount,
@@ -277,6 +332,13 @@ export default function ListToken() {
             </CardHeader>
             
             <CardContent>
+              <Alert className="mb-6 bg-blue-500/10 text-blue-600 border-blue-200">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  Make sure you have sufficient token balance before listing. The amount cannot exceed your current balance.
+                </AlertDescription>
+              </Alert>
+              
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr] gap-4">
@@ -326,6 +388,7 @@ export default function ListToken() {
                           value={formData.amount}
                           onChange={handleChange}
                           disabled={isSubmitting || !tokenInfo}
+                          className={amountError ? "border-red-500 focus-visible:ring-red-500" : ""}
                           required
                         />
                         {tokenInfo && (
@@ -340,6 +403,9 @@ export default function ListToken() {
                           </Button>
                         )}
                       </div>
+                      {amountError && (
+                        <p className="text-sm text-red-500 mt-1">{amountError}</p>
+                      )}
                     </div>
                     
                     <div className="space-y-2">
@@ -498,6 +564,13 @@ export default function ListToken() {
                 </div>
               )}
               
+              {amountError && (
+                <div className="flex items-center gap-2 text-red-500 bg-red-500/10 w-full p-3 rounded-md text-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{amountError}</span>
+                </div>
+              )}
+              
               <Button 
                 className="w-full"
                 type="submit"
@@ -507,7 +580,8 @@ export default function ListToken() {
                   !walletState.address || 
                   !tokenInfo || 
                   !formData.amount || 
-                  !formData.pricePerShare
+                  !formData.pricePerShare ||
+                  !!amountError
                 }
               >
                 {isSubmitting ? <LoadingSpinner size="sm" /> : 'List Token'}
