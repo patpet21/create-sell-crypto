@@ -42,26 +42,29 @@ export function ConnectWallet({ className }: ConnectWalletProps) {
         .catch(console.error);
       
       // Handle account changes
-      window.ethereum.on('accountsChanged', (accounts: string[]) => {
+      const handleAccountsChanged = (accounts: string[]) => {
         if (accounts.length === 0) {
           handleDisconnect();
         } else {
           handleConnect();
         }
-      });
+      };
       
       // Handle chain changes
-      window.ethereum.on('chainChanged', () => {
+      const handleChainChanged = () => {
         handleConnect();
-      });
+      };
+      
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
+      
+      return () => {
+        if (window.ethereum) {
+          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+          window.ethereum.removeListener('chainChanged', handleChainChanged);
+        }
+      };
     }
-    
-    return () => {
-      if (window.ethereum) {
-        window.ethereum.removeAllListeners('accountsChanged');
-        window.ethereum.removeAllListeners('chainChanged');
-      }
-    };
   }, []);
 
   const handleConnect = async () => {
