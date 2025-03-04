@@ -46,6 +46,7 @@ export default function Marketplace() {
       
       // Get the number of listings
       const listingCount = await marketplaceContract.listingCount();
+      console.log("Total listings found:", listingCount.toNumber());
       
       // Fetch all listings
       const fetchedListings: ListingDetails[] = [];
@@ -66,6 +67,19 @@ export default function Marketplace() {
             endTime,
           ] = await marketplaceContract.getListingMainDetails(i);
           
+          // Skip inactive listings
+          if (!active) {
+            console.log(`Listing ${i} is inactive, skipping`);
+            continue;
+          }
+          
+          // Check if the listing is expired
+          const now = Math.floor(Date.now() / 1000);
+          if (endTime.toNumber() < now) {
+            console.log(`Listing ${i} is expired, skipping`);
+            continue;
+          }
+          
           // Get listing metadata
           const [
             projectWebsite,
@@ -75,12 +89,7 @@ export default function Marketplace() {
             projectDescription,
           ] = await marketplaceContract.getListingMetadata(i);
           
-          // Skip inactive listings
-          if (!active) continue;
-          
-          // Check if the listing is expired
-          const now = Math.floor(Date.now() / 1000);
-          if (endTime.toNumber() < now) continue;
+          console.log(`Processing listing ${i} for token at ${tokenAddress}`);
           
           // Get token details
           let tokenDetails: TokenDetails | undefined;
@@ -110,8 +119,12 @@ export default function Marketplace() {
               twitterUrl,
               telegramUrl: tokenTelegramUrl,
             };
+            
+            console.log(`Successfully fetched token details for ${name} (${symbol})`);
           } catch (err) {
             console.error(`Failed to fetch token details for listing ${i}:`, err);
+            // Continue with the listing even if token details couldn't be fetched
+            // We'll show what we can with the listing metadata
           }
           
           // Create listing object
@@ -138,14 +151,17 @@ export default function Marketplace() {
           };
           
           fetchedListings.push(listing);
+          console.log(`Added listing ${i} to results`);
         } catch (err) {
           console.error(`Error fetching listing ${i}:`, err);
+          // Continue with the next listing
         }
       }
       
       // Sort listings by newest first
       fetchedListings.sort((a, b) => parseInt(b.id) - parseInt(a.id));
       
+      console.log(`Found ${fetchedListings.length} active listings`);
       setListings(fetchedListings);
       setFilteredListings(fetchedListings);
     } catch (err: any) {
@@ -166,9 +182,9 @@ export default function Marketplace() {
     const term = searchTerm.toLowerCase().trim();
     
     const filtered = listings.filter((listing) => {
-      const tokenName = listing.tokenDetails?.name.toLowerCase() || '';
-      const tokenSymbol = listing.tokenDetails?.symbol.toLowerCase() || '';
-      const description = listing.metadata.projectDescription.toLowerCase() || '';
+      const tokenName = listing.tokenDetails?.name?.toLowerCase() || '';
+      const tokenSymbol = listing.tokenDetails?.symbol?.toLowerCase() || '';
+      const description = listing.metadata.projectDescription?.toLowerCase() || '';
       
       return (
         tokenName.includes(term) ||

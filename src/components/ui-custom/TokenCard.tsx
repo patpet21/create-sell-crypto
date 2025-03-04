@@ -25,16 +25,21 @@ export function TokenCard({ data, type, className }: TokenCardProps) {
     : token.imageUrl || 'https://via.placeholder.com/300';
   
   // Determine name and symbol
-  const name = token.name || 'Unknown Token';
+  const name = token.name || (isListing ? 'Listed Token' : 'Unknown Token');
   const symbol = token.symbol || '???';
   
   // Find payment token info if it's a listing
   const paymentTokenInfo = isListing 
     ? PAYMENT_OPTIONS.find(opt => opt.address.toLowerCase() === listing.paymentToken.toLowerCase()) 
     : undefined;
+
+  // Determine the link path
+  const linkPath = isListing 
+    ? `/marketplace/${listing.id}` 
+    : `/token/${token.tokenAddress}`;
   
   return (
-    <Link to={isListing ? `/marketplace/${listing.id}` : `/token/${token.tokenAddress}`}>
+    <Link to={linkPath}>
       <Card 
         className={cn(
           "overflow-hidden transition-all duration-300 border-border/40 hover:border-primary/30 hover:shadow-lg group",
@@ -77,7 +82,7 @@ export function TokenCard({ data, type, className }: TokenCardProps) {
               )}
             </div>
             
-            {!isListing && (
+            {!isListing && token.creator && (
               <p className="text-sm text-muted-foreground truncate">
                 Created by {shortenAddress(token.creator)}
               </p>

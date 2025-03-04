@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import CreateToken from "./pages/CreateToken";
 import Marketplace from "./pages/Marketplace";
+import TokenDetails from "./pages/TokenDetails";
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,8 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/create" element={<CreateToken />} />
           <Route path="/marketplace" element={<Marketplace />} />
+          <Route path="/token/:tokenAddress" element={<TokenDetails />} />
+          <Route path="/marketplace/:listingId" element={<TokenDetails />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -30,4 +33,3 @@ const App = () => (
 );
 
 export default App;
-
