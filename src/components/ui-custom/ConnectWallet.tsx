@@ -17,9 +17,10 @@ import { useToast } from '@/hooks/use-toast';
 
 interface ConnectWalletProps {
   className?: string;
+  onConnect?: (walletState: WalletState) => void;
 }
 
-export function ConnectWallet({ className }: ConnectWalletProps) {
+export function ConnectWallet({ className, onConnect }: ConnectWalletProps) {
   const [walletState, setWalletState] = useState<WalletState>({
     address: null,
     provider: null,
@@ -66,6 +67,13 @@ export function ConnectWallet({ className }: ConnectWalletProps) {
       };
     }
   }, []);
+
+  // Notify parent component when wallet state changes
+  useEffect(() => {
+    if (onConnect && walletState.address) {
+      onConnect(walletState);
+    }
+  }, [walletState, onConnect]);
 
   const handleConnect = async () => {
     setWalletState(prev => ({ ...prev, isConnecting: true, error: null }));
